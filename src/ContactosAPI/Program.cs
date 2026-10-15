@@ -39,3 +39,6 @@ record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
     public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
 }
+
+// Necesario para que WebApplicationFactory<Program> pueda acceder al punto de entrada desde el proyecto de pruebas.
+public partial class Program { }
