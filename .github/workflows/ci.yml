@@ -1,0 +1,70 @@
+# ============================================================
+# INTEGRACIÓN CONTINUA (CI) PARA ContactosAPI
+# Es como un robot revisor: cada vez que alguien propone un
+# cambio, el robot descarga el código, lo construye y corre
+# todas las pruebas. Si algo falla, avisa con una X roja.
+# ============================================================
+
+# Nombre que verás en la pestaña "Actions" de GitHub.
+name: CI - Construir y probar
+
+# CUÁNDO se despierta el robot:
+on:
+  # 1) Cuando alguien abre o actualiza un Pull Request hacia main
+  #    (un Pull Request es "pedir permiso para mezclar mis cambios").
+  pull_request:
+    branches:
+      - main
+  # 2) Cuando alguien sube cambios directamente a main.
+  push:
+    branches:
+      - main
+
+# TRABAJOS (jobs): cada uno corre en su propia computadora temporal.
+jobs:
+  build-and-test:
+    # La computadora prestada por GitHub: Linux, siempre la versión más nueva.
+    runs-on: ubuntu-latest
+
+    # PASOS: se ejecutan en orden, como una receta de cocina.
+    steps:
+
+      # Paso 1: traer el código del repositorio a la computadora del robot.
+      # (Empieza vacía; sin esto no habría nada que probar.)
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      # Paso 2: instalar .NET 10, la herramienta que entiende nuestro proyecto.
+      - name: Instalar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Paso 3: descargar los paquetes (librerías de otras personas) que usamos.
+      # No hace falta "working-directory": la solución está en la raíz.
+      - name: Restaurar dependencias
+        run: dotnet restore
+
+      # Paso 4: construir (compilar) el proyecto en modo Release.
+      # --no-restore = no vuelvas a descargar paquetes, ya lo hicimos.
+      - name: Compilar
+        run: dotnet build --no-restore --configuration Release
+
+      # Paso 5: correr las pruebas.
+      # --no-build = no recompiles, usa lo del paso 4.
+      # --logger trx = guarda un informe con los resultados.
+      - name: Ejecutar pruebas
+        run: >
+          dotnet test --no-build --configuration Release
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory ./TestResults
+
+      # Paso 6: guardar el informe para poder descargarlo desde GitHub.
+      # "if: always()" = hazlo incluso si las pruebas fallaron
+      # (justo ahí es cuando más queremos leer el informe).
+      - name: Guardar resultados de pruebas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultados-de-pruebas
+          path: TestResults/*.trx
