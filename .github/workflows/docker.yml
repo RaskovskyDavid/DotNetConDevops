@@ -1,0 +1,57 @@
+# ============================================================
+# CONSTRUIR LA IMAGEN DOCKER DE ContactosAPI
+# Una imagen Docker es como una "caja sellada" con la API y todo
+# lo que necesita para funcionar en cualquier computadora.
+# Este robot arma esa caja y comprueba que la API responde.
+# ============================================================
+name: API Contactos - Imagen Docker
+
+on:
+  # Cuando se mezcla algo en main.
+  push:
+    branches: [ "main" ]
+  # Opcional: botón "Run workflow" en la pestaña Actions para lanzarlo a mano.
+  workflow_dispatch:
+
+env:
+  # Nombre de la imagen (en minúsculas, Docker lo exige).
+  IMAGE_BASE_NAME: contactosapi
+
+jobs:
+  API_Image:
+    runs-on: ubuntu-latest
+    steps:
+      # Paso 1: traer el código.
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      # Paso 2: construir la imagen.
+      # El contexto es src/ContactosAPI porque ahí están el Dockerfile y el .csproj.
+      # La etiqueta (tag) lleva el código del commit para saber de qué versión viene.
+      - name: Construir imagen Docker
+        run: >
+          docker build --platform linux/amd64
+          -t $IMAGE_BASE_NAME:${{ github.sha }}
+          -t $IMAGE_BASE_NAME:latest
+          src/ContactosAPI
+
+      # Paso 3: prueba de humo. Encendemos la caja y le preguntamos algo.
+      # Si no responde en 30 segundos, el paso falla.
+      - name: Probar que el contenedor responde
+        run: |
+          docker run -d --rm -p 8080:8080 --name contactos $IMAGE_BASE_NAME:latest
+          for i in $(seq 1 30); do
+            if curl -fs http://localhost:8080/weatherforecast > /dev/null; then
+              echo "La API respondió correctamente"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "La API no respondió a tiempo"
+          docker logs contactos
+          exit 1
+
+      # Paso 4: apagar el contenedor aunque algo haya fallado.
+      - name: Detener contenedor
+        if: always()
+        run: docker stop contactos || true
