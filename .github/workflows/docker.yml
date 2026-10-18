@@ -2,7 +2,9 @@
 # CONSTRUIR LA IMAGEN DOCKER DE ContactosAPI
 # Una imagen Docker es como una "caja sellada" con la API y todo
 # lo que necesita para funcionar en cualquier computadora.
-# Este robot arma esa caja y comprueba que la API responde.
+# Este robot arma esa caja, comprueba que la API responde y,
+# si todo salió bien, la sube a Docker Hub (la "bodega" pública
+# de cajas) para poder descargarla y desplegarla desde cualquier lado.
 # ============================================================
 name: API Contactos - Imagen Docker
 
@@ -13,13 +15,13 @@ on:
   # Opcional: botón "Run workflow" en la pestaña Actions para lanzarlo a mano.
   workflow_dispatch:
 
-env:
-  # Nombre de la imagen (en minúsculas, Docker lo exige).
-  IMAGE_BASE_NAME: contactosapi
-
 jobs:
   API_Image:
     runs-on: ubuntu-latest
+    env:
+      # Docker Hub exige el formato  usuario/nombre-de-imagen  (todo en minúsculas).
+      # El usuario viene de un secreto, así no queda escrito en el código.
+      IMAGE_BASE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/contactosapi
     steps:
       # Paso 1: traer el código.
       - name: Descargar el código
@@ -55,3 +57,15 @@ jobs:
       - name: Detener contenedor
         if: always()
         run: docker stop contactos || true
+
+      # Paso 5: entrar a Docker Hub con usuario y token (los secretos de GitHub).
+      # Solo llegamos aquí si la prueba de humo pasó: nunca se sube una imagen rota.
+      - name: Iniciar sesión en Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Paso 6: subir la imagen con sus dos etiquetas (latest y el código del commit).
+      - name: Publicar imagen en Docker Hub
+        run: docker push --all-tags $IMAGE_BASE_NAME
