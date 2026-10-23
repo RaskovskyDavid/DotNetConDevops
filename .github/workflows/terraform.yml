@@ -1,0 +1,60 @@
+# ============================================================
+# DESPLIEGUE DE INFRAESTRUCTURA EN AZURE CON TERRAFORM
+# Terraform lee los archivos de la carpeta infra/ y construye en
+# Azure lo que allí está descrito (como seguir planos de LEGO).
+#   - En un Pull Request: solo MUESTRA qué cambiaría (plan).
+#   - En main: además lo APLICA (apply).
+# ============================================================
+name: Infraestructura - Terraform
+
+on:
+  pull_request:
+    branches: [ "main" ]
+    paths: [ "infra/**" ]
+  push:
+    branches: [ "main" ]
+    paths: [ "infra/**" ]
+  workflow_dispatch:
+
+# Credenciales del Service Principal (secretos de GitHub).
+# El proveedor azurerm las lee automáticamente.
+env:
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  # Imagen que publicó el workflow de Docker Hub.
+  TF_VAR_docker_image: ${{ secrets.DOCKERHUB_USERNAME }}/contactosapi:latest
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Instalar Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # Revisa que los archivos estén bien escritos.
+      - name: Formato
+        run: terraform fmt -check
+
+      # Conecta con el estado guardado en Azure Storage y descarga el proveedor.
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      # Muestra qué se va a crear/cambiar/borrar, sin tocar nada.
+      - name: Terraform plan
+        run: terraform plan -input=false -out=tfplan
+
+      # Solo al mezclar en main (o al lanzarlo a mano desde main): construir de verdad.
+      - name: Terraform apply
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: terraform apply -input=false -auto-approve tfplan

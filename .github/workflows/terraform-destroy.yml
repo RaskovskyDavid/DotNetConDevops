@@ -1,0 +1,43 @@
+# ============================================================
+# BORRAR LA INFRAESTRUCTURA DE AZURE (terraform destroy)
+# Es el botón de "recoger los LEGO": elimina lo que Terraform creó
+# para dejar de pagar. Solo se lanza a mano y pide escribir
+# "destruir" como confirmación, para no borrar nada por accidente.
+# ============================================================
+name: Infraestructura - Destruir (Terraform)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: 'Escribe "destruir" para confirmar'
+        required: true
+        type: string
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+  ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+  TF_VAR_docker_image: ${{ secrets.DOCKERHUB_USERNAME }}/contactosapi:latest
+
+jobs:
+  destroy:
+    # Si no escribieron "destruir", el trabajo ni empieza.
+    if: ${{ inputs.confirmar == 'destruir' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Instalar Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform destroy
+        run: terraform destroy -input=false -auto-approve
